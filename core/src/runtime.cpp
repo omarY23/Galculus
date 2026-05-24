@@ -4,8 +4,9 @@
 
 namespace galculus::core {
 
-AgentRuntime::AgentRuntime() = default;
-
+AgentRuntime::AgentRuntime(Transport& transport)
+    : transport_(transport) {}
+    
 Result AgentRuntime::register_agent(std::unique_ptr<Agent> agent) {
     if (!agent) {
         return Result::failure(

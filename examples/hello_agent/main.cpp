@@ -1,4 +1,5 @@
 #include <galculus/core/agent.hpp>
+#include <galculus/core/in_memory_transport.hpp>
 #include <galculus/core/runtime.hpp>
 
 #include <iostream>
@@ -32,7 +33,8 @@ public:
 };
 
 int main() {
-    AgentRuntime runtime;
+    InMemoryTransport transport;
+    AgentRuntime runtime(transport);
 
     auto result = runtime.register_agent(std::make_unique<LoggerAgent>());
 

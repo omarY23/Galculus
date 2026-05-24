@@ -1,20 +1,19 @@
 #pragma once
 
 #include <galculus/core/agent.hpp>
-#include <galculus/core/in_memory_transport.hpp>
 #include <galculus/core/result.hpp>
+#include <galculus/core/transport.hpp>
 
 #include <cstdint>
 #include <memory>
 #include <string>
 #include <unordered_map>
-#include <vector>
 
 namespace galculus::core {
 
 class AgentRuntime {
 public:
-    AgentRuntime();
+    explicit AgentRuntime(Transport& transport);
 
     Result register_agent(std::unique_ptr<Agent> agent);
 
@@ -49,7 +48,7 @@ public:
 
 private:
     std::unordered_map<std::string, std::unique_ptr<Agent>> agents_;
-    InMemoryTransport transport_;
+    Transport& transport_;
     bool running_{false};
     MessageId next_message_id_{1};
 

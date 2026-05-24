@@ -13,6 +13,7 @@ add_subdirectory(core)
 
 if(GALCULUS_BUILD_EXAMPLES)
     add_subdirectory(examples/hello_agent)
+    add_subdirectory(examples/tcp_nodes)
 endif()
 
 if(GALCULUS_BUILD_TESTS)
