@@ -102,3 +102,17 @@ target_link_libraries(test_llm_runtime PRIVATE
 )
 
 add_test(NAME test_llm_runtime COMMAND test_llm_runtime)
+
+add_executable(galculus_llm_message_codec_tests
+    llm_message_codec_tests.cpp
+)
+
+target_link_libraries(galculus_llm_message_codec_tests
+    PRIVATE
+        galculus::llm_bridge
+)
+
+add_test(
+    NAME galculus_llm_message_codec_tests
+    COMMAND galculus_llm_message_codec_tests
+)
