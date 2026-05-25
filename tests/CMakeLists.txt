@@ -93,3 +93,12 @@ add_test(
     NAME galculus_tcp_byte_transport_tests
     COMMAND galculus_tcp_byte_transport_tests
 )
+add_executable(test_llm_runtime
+    test_llm_runtime.cpp
+)
+
+target_link_libraries(test_llm_runtime PRIVATE
+    galculus::llm
+)
+
+add_test(NAME test_llm_runtime COMMAND test_llm_runtime)
