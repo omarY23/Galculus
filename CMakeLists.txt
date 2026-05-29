@@ -12,14 +12,18 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 add_subdirectory(core)
 add_subdirectory(llm)
 add_subdirectory(llm_bridge)
+add_subdirectory(llm_remote)
 
 
 if(GALCULUS_BUILD_EXAMPLES)
     add_subdirectory(examples/hello_agent)
     add_subdirectory(examples/tcp_nodes)
+    add_subdirectory(examples/llm_nodes)
+    add_subdirectory(examples/remote_llm_client)
 endif()
 
 if(GALCULUS_BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests)
 endif()
+

@@ -14,3 +14,9 @@ target_compile_features(galculus_llm
 )
 
 add_library(galculus::llm ALIAS galculus_llm)
+
+target_link_libraries(galculus_llm
+    PUBLIC
+        galculus::core
+        galculus::llm_bridge
+)
