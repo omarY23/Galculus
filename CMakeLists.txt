@@ -13,7 +13,7 @@ add_subdirectory(core)
 add_subdirectory(llm)
 add_subdirectory(llm_bridge)
 add_subdirectory(llm_remote)
-
+add_subdirectory(tools)
 
 if(GALCULUS_BUILD_EXAMPLES)
     add_subdirectory(examples/hello_agent)

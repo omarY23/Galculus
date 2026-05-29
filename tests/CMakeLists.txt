@@ -116,3 +116,17 @@ add_test(
     NAME galculus_llm_message_codec_tests
     COMMAND galculus_llm_message_codec_tests
 )
+
+add_executable(galculus_tool_runtime_tests
+    tool_runtime_tests.cpp
+)
+
+target_link_libraries(galculus_tool_runtime_tests
+    PRIVATE
+        galculus::tools
+)
+
+add_test(
+    NAME galculus_tool_runtime_tests
+    COMMAND galculus_tool_runtime_tests
+)
