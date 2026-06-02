@@ -20,6 +20,7 @@ if(GALCULUS_BUILD_EXAMPLES)
     add_subdirectory(examples/tcp_nodes)
     add_subdirectory(examples/llm_nodes)
     add_subdirectory(examples/remote_llm_client)
+    add_subdirectory(examples/tool_agent_demo)
 endif()
 
 if(GALCULUS_BUILD_TESTS)

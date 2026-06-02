@@ -1,30 +1,10 @@
-#include "galculus/llm_bridge/LLMMessageCodec.hpp"
+#include <galculus/llm_bridge/LLMMessageCodec.hpp>
 
-#include <sstream>
+#include <cstdint>
+#include <cstring>
 #include <stdexcept>
 #include <string>
-
-namespace {
-
-std::vector<uint8_t> string_to_bytes(
-    const std::string& s
-) {
-    return std::vector<uint8_t>(
-        s.begin(),
-        s.end()
-    );
-}
-
-std::string bytes_to_string(
-    const std::vector<uint8_t>& data
-) {
-    return std::string(
-        data.begin(),
-        data.end()
-    );
-}
-
-}
+#include <vector>
 
 namespace galculus::llm_bridge {
 
@@ -37,56 +17,165 @@ using galculus::llm::PromptRole;
 
 namespace {
 
-std::string role_to_string(PromptRole role) {
+class Writer {
+public:
+    void u8(std::uint8_t value) {
+        data_.push_back(value);
+    }
+
+    void u32(std::uint32_t value) {
+        data_.push_back(static_cast<std::uint8_t>((value >> 0) & 0xff));
+        data_.push_back(static_cast<std::uint8_t>((value >> 8) & 0xff));
+        data_.push_back(static_cast<std::uint8_t>((value >> 16) & 0xff));
+        data_.push_back(static_cast<std::uint8_t>((value >> 24) & 0xff));
+    }
+
+    void f32(float value) {
+        static_assert(sizeof(float) == sizeof(std::uint32_t));
+
+        std::uint32_t raw = 0;
+        std::memcpy(&raw, &value, sizeof(float));
+        u32(raw);
+    }
+
+    void str(const std::string& value) {
+        u32(static_cast<std::uint32_t>(value.size()));
+
+        data_.insert(
+            data_.end(),
+            value.begin(),
+            value.end()
+        );
+    }
+
+    const std::vector<std::uint8_t>& data() const {
+        return data_;
+    }
+
+private:
+    std::vector<std::uint8_t> data_;
+};
+
+class Reader {
+public:
+    explicit Reader(const std::vector<std::uint8_t>& data)
+        : data_(data) {}
+
+    std::uint8_t u8() {
+        require(1);
+        return data_[offset_++];
+    }
+
+    std::uint32_t u32() {
+        require(4);
+
+        std::uint32_t value = 0;
+        value |= static_cast<std::uint32_t>(data_[offset_ + 0]) << 0;
+        value |= static_cast<std::uint32_t>(data_[offset_ + 1]) << 8;
+        value |= static_cast<std::uint32_t>(data_[offset_ + 2]) << 16;
+        value |= static_cast<std::uint32_t>(data_[offset_ + 3]) << 24;
+
+        offset_ += 4;
+        return value;
+    }
+
+    float f32() {
+        std::uint32_t raw = u32();
+
+        float value = 0.0f;
+        std::memcpy(&value, &raw, sizeof(float));
+        return value;
+    }
+
+    std::string str() {
+        const auto size = u32();
+        require(size);
+
+        std::string value(
+            data_.begin() + static_cast<std::ptrdiff_t>(offset_),
+            data_.begin() + static_cast<std::ptrdiff_t>(offset_ + size)
+        );
+
+        offset_ += size;
+        return value;
+    }
+
+private:
+    void require(std::size_t count) const {
+        if (offset_ + count > data_.size()) {
+            throw std::runtime_error("LLMMessageCodec: truncated payload");
+        }
+    }
+
+    const std::vector<std::uint8_t>& data_;
+    std::size_t offset_{0};
+};
+
+std::uint8_t role_to_u8(PromptRole role) {
     switch (role) {
-        case PromptRole::System: return "system";
-        case PromptRole::User: return "user";
-        case PromptRole::Assistant: return "assistant";
-        case PromptRole::Tool: return "tool";
+        case PromptRole::System: return 0;
+        case PromptRole::User: return 1;
+        case PromptRole::Assistant: return 2;
+        case PromptRole::Tool: return 3;
     }
 
-    return "unknown";
+    return 255;
 }
 
-PromptRole string_to_role(const std::string& role) {
-    if (role == "system") return PromptRole::System;
-    if (role == "user") return PromptRole::User;
-    if (role == "assistant") return PromptRole::Assistant;
-    if (role == "tool") return PromptRole::Tool;
-
-    throw std::runtime_error("Unknown prompt role: " + role);
+PromptRole u8_to_role(std::uint8_t value) {
+    switch (value) {
+        case 0: return PromptRole::System;
+        case 1: return PromptRole::User;
+        case 2: return PromptRole::Assistant;
+        case 3: return PromptRole::Tool;
+        default:
+            throw std::runtime_error("LLMMessageCodec: invalid prompt role");
+    }
 }
 
-std::string status_to_string(LLMStatus status) {
+std::uint8_t status_to_u8(LLMStatus status) {
     switch (status) {
-        case LLMStatus::Ok: return "ok";
-        case LLMStatus::Timeout: return "timeout";
-        case LLMStatus::Cancelled: return "cancelled";
-        case LLMStatus::InvalidPrompt: return "invalid_prompt";
-        case LLMStatus::BackendError: return "backend_error";
+        case LLMStatus::Ok: return 0;
+        case LLMStatus::Timeout: return 1;
+        case LLMStatus::Cancelled: return 2;
+        case LLMStatus::InvalidPrompt: return 3;
+        case LLMStatus::BackendError: return 4;
     }
 
-    return "backend_error";
+    return 4;
 }
 
-LLMStatus string_to_status(const std::string& status) {
-    if (status == "ok") return LLMStatus::Ok;
-    if (status == "timeout") return LLMStatus::Timeout;
-    if (status == "cancelled") return LLMStatus::Cancelled;
-    if (status == "invalid_prompt") return LLMStatus::InvalidPrompt;
-    if (status == "backend_error") return LLMStatus::BackendError;
-
-    return LLMStatus::BackendError;
-}
-
-std::string read_value(const std::string& line, const std::string& key) {
-    const std::string prefix = key + "=";
-
-    if (line.rfind(prefix, 0) != 0) {
-        throw std::runtime_error("Expected key: " + key);
+LLMStatus u8_to_status(std::uint8_t value) {
+    switch (value) {
+        case 0: return LLMStatus::Ok;
+        case 1: return LLMStatus::Timeout;
+        case 2: return LLMStatus::Cancelled;
+        case 3: return LLMStatus::InvalidPrompt;
+        case 4: return LLMStatus::BackendError;
+        default:
+            return LLMStatus::BackendError;
     }
+}
 
-    return line.substr(prefix.size());
+void add_prompt_message(
+    Prompt& prompt,
+    PromptRole role,
+    const std::string& content
+) {
+    switch (role) {
+        case PromptRole::System:
+            prompt.add_system(content);
+            break;
+        case PromptRole::User:
+            prompt.add_user(content);
+            break;
+        case PromptRole::Assistant:
+            prompt.add_assistant(content);
+            break;
+        case PromptRole::Tool:
+            prompt.add_tool(content);
+            break;
+    }
 }
 
 } // namespace
@@ -96,22 +185,28 @@ Message LLMMessageCodec::encode_request(
     const std::string& source,
     const std::string& target
 ) {
-    std::ostringstream payload;
+    Writer writer;
 
-    payload << "request_id=" << request.request_id << '\n';
+    writer.str("GLM_REQ_V1");
 
-    payload << "max_tokens=" << request.config.max_tokens << '\n';
-    payload << "temperature=" << request.config.temperature << '\n';
-    payload << "top_p=" << request.config.top_p << '\n';
-    payload << "seed=" << request.config.seed << '\n';
-    payload << "timeout_ms=" << request.config.timeout_ms << '\n';
-    payload << "stream=" << (request.config.stream ? 1 : 0) << '\n';
+    writer.str(request.request_id);
 
-    payload << "messages=" << request.prompt.messages().size() << '\n';
+    writer.u32(request.config.max_tokens);
+    writer.f32(request.config.temperature);
+    writer.f32(request.config.top_p);
+    writer.u32(request.config.seed);
+    writer.u32(request.config.timeout_ms);
+    writer.u8(request.config.stream ? 1 : 0);
+
+    writer.u32(
+        static_cast<std::uint32_t>(
+            request.prompt.messages().size()
+        )
+    );
 
     for (const auto& msg : request.prompt.messages()) {
-        payload << "role=" << role_to_string(msg.role) << '\n';
-        payload << "content=" << msg.content << '\n';
+        writer.u8(role_to_u8(msg.role));
+        writer.str(msg.content);
     }
 
     Message message;
@@ -119,10 +214,7 @@ Message LLMMessageCodec::encode_request(
     message.source = source;
     message.target = target;
     message.event.name = "LLM_REQUEST";
-    message.event.payload =
-        string_to_bytes(
-            payload.str()
-        );
+    message.event.payload = writer.data();
 
     return message;
 }
@@ -134,66 +226,36 @@ LLMRequest LLMMessageCodec::decode_request(
         throw std::runtime_error("Message is not LLM_REQUEST");
     }
 
-    std::istringstream input(bytes_to_string(
-        message.event.payload
-    ));
-    std::string line;
+    Reader reader(message.event.payload);
+
+    const auto magic = reader.str();
+
+    if (magic != "GLM_REQ_V1") {
+        throw std::runtime_error("Invalid LLM request payload");
+    }
 
     LLMRequest request;
 
-    std::getline(input, line);
-    request.request_id = read_value(line, "request_id");
+    request.request_id = reader.str();
 
-    std::getline(input, line);
-    request.config.max_tokens = static_cast<uint32_t>(
-        std::stoul(read_value(line, "max_tokens"))
-    );
+    request.config.max_tokens = reader.u32();
+    request.config.temperature = reader.f32();
+    request.config.top_p = reader.f32();
+    request.config.seed = reader.u32();
+    request.config.timeout_ms = reader.u32();
+    request.config.stream = reader.u8() != 0;
 
-    std::getline(input, line);
-    request.config.temperature = std::stof(read_value(line, "temperature"));
+    const auto message_count = reader.u32();
 
-    std::getline(input, line);
-    request.config.top_p = std::stof(read_value(line, "top_p"));
+    for (std::uint32_t i = 0; i < message_count; ++i) {
+        const auto role = u8_to_role(reader.u8());
+        const auto content = reader.str();
 
-    std::getline(input, line);
-    request.config.seed = static_cast<uint32_t>(
-        std::stoul(read_value(line, "seed"))
-    );
-
-    std::getline(input, line);
-    request.config.timeout_ms = static_cast<uint32_t>(
-        std::stoul(read_value(line, "timeout_ms"))
-    );
-
-    std::getline(input, line);
-    request.config.stream = std::stoi(read_value(line, "stream")) != 0;
-
-    std::getline(input, line);
-    const auto count = static_cast<size_t>(
-        std::stoul(read_value(line, "messages"))
-    );
-
-    for (size_t i = 0; i < count; ++i) {
-        std::getline(input, line);
-        const auto role = string_to_role(read_value(line, "role"));
-
-        std::getline(input, line);
-        const auto content = read_value(line, "content");
-
-        switch (role) {
-            case PromptRole::System:
-                request.prompt.add_system(content);
-                break;
-            case PromptRole::User:
-                request.prompt.add_user(content);
-                break;
-            case PromptRole::Assistant:
-                request.prompt.add_assistant(content);
-                break;
-            case PromptRole::Tool:
-                request.prompt.add_tool(content);
-                break;
-        }
+        add_prompt_message(
+            request.prompt,
+            role,
+            content
+        );
     }
 
     return request;
@@ -204,25 +266,26 @@ Message LLMMessageCodec::encode_response(
     const std::string& source,
     const std::string& target
 ) {
-    std::ostringstream payload;
+    Writer writer;
 
-    payload << "request_id=" << response.request_id << '\n';
-    payload << "status=" << status_to_string(response.result.status) << '\n';
-    payload << "text=" << response.result.text << '\n';
-    payload << "prompt_tokens=" << response.result.prompt_tokens << '\n';
-    payload << "completion_tokens=" << response.result.completion_tokens << '\n';
-    payload << "elapsed_ms=" << response.result.elapsed_ms << '\n';
-    payload << "error_message=" << response.result.error_message << '\n';
+    writer.str("GLM_RES_V1");
+
+    writer.str(response.request_id);
+
+    writer.u8(status_to_u8(response.result.status));
+    writer.str(response.result.text);
+    writer.u32(response.result.prompt_tokens);
+    writer.u32(response.result.completion_tokens);
+    writer.u32(response.result.elapsed_ms);
+    writer.str(response.result.error_message);
 
     Message message;
     message.id = 0;
     message.source = source;
     message.target = target;
     message.event.name = "LLM_RESPONSE";
-    message.event.payload =
-        string_to_bytes(
-            payload.str()
-        );
+    message.event.payload = writer.data();
+
     return message;
 }
 
@@ -233,39 +296,24 @@ LLMResponse LLMMessageCodec::decode_response(
         throw std::runtime_error("Message is not LLM_RESPONSE");
     }
 
-    std::istringstream input(bytes_to_string(
-        message.event.payload
-    ));
-    std::string line;
+    Reader reader(message.event.payload);
+
+    const auto magic = reader.str();
+
+    if (magic != "GLM_RES_V1") {
+        throw std::runtime_error("Invalid LLM response payload");
+    }
 
     LLMResponse response;
 
-    std::getline(input, line);
-    response.request_id = read_value(line, "request_id");
+    response.request_id = reader.str();
 
-    std::getline(input, line);
-    response.result.status = string_to_status(read_value(line, "status"));
-
-    std::getline(input, line);
-    response.result.text = read_value(line, "text");
-
-    std::getline(input, line);
-    response.result.prompt_tokens = static_cast<uint32_t>(
-        std::stoul(read_value(line, "prompt_tokens"))
-    );
-
-    std::getline(input, line);
-    response.result.completion_tokens = static_cast<uint32_t>(
-        std::stoul(read_value(line, "completion_tokens"))
-    );
-
-    std::getline(input, line);
-    response.result.elapsed_ms = static_cast<uint32_t>(
-        std::stoul(read_value(line, "elapsed_ms"))
-    );
-
-    std::getline(input, line);
-    response.result.error_message = read_value(line, "error_message");
+    response.result.status = u8_to_status(reader.u8());
+    response.result.text = reader.str();
+    response.result.prompt_tokens = reader.u32();
+    response.result.completion_tokens = reader.u32();
+    response.result.elapsed_ms = reader.u32();
+    response.result.error_message = reader.str();
 
     return response;
 }

@@ -63,7 +63,7 @@ LLMResult MockLLM::generate(
         return result;
     }
 
-    result.text = limit_words(fixed_response_, config.max_tokens);
+    result.text = fixed_response_;
     result.prompt_tokens = count_words(prompt.to_string());
     result.completion_tokens = count_words(result.text);
 

@@ -52,8 +52,11 @@ int main() {
     std::cout << "[llm-server] prompt:\n"
               << request.prompt.to_string() << "\n";
 
-    MockLLM llm("turn_on_light");
-
+    MockLLM llm(
+        "tool=turn_on_light\n"
+        "reason=motion detected near door\n"
+        "confidence=0.82\n"
+    );
     LLMResult result =
         llm.generate(
             request.prompt,
