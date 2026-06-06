@@ -144,3 +144,19 @@ add_test(
     NAME galculus_scheduler_tests
     COMMAND galculus_scheduler_tests
 )
+
+add_executable(galculus_scheduled_llm_runtime_tests
+    scheduled_llm_runtime_tests.cpp
+)
+
+target_link_libraries(galculus_scheduled_llm_runtime_tests
+    PRIVATE
+        galculus_llm
+        galculus_scheduler
+        galculus_llm_scheduled
+)
+
+add_test(
+    NAME galculus_scheduled_llm_runtime_tests
+    COMMAND galculus_scheduled_llm_runtime_tests
+)

@@ -7,4 +7,6 @@ target_link_libraries(galculus_tool_agent_client
         galculus::llm
         galculus::llm_remote
         galculus::tools
+        galculus_scheduler
+        galculus_llm_scheduled
 )

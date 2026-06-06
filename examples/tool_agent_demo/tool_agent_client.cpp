@@ -5,6 +5,9 @@
 #include <galculus/tools/ToolCallParser.hpp>
 #include <galculus/tools/ToolRegistry.hpp>
 #include <galculus/tools/SafetyPolicy.hpp>
+#include "galculus/scheduler/TokenBudget.hpp"
+#include "galculus/scheduler/TokenScheduler.hpp"
+#include "galculus/llm_scheduled/ScheduledLLMRuntime.hpp"
 
 #include <cstdint>
 #include <iostream>
@@ -37,14 +40,26 @@ int main() {
     config.timeout_ms = 1000;
     config.stream = false;
 
-    RemoteLLM llm(
+    RemoteLLM remote_llm(
         "127.0.0.1",
         port,
         "tool_agent.client",
         "llm.server"
     );
 
-    std::cout << "[agent] requesting remote LLM decision\n";
+    galculus::scheduler::TokenBudget budget;
+    budget.max_prompt_tokens = 128;
+    budget.max_completion_tokens = 32;
+    budget.remaining_tokens = 160;
+
+    galculus::scheduler::TokenScheduler scheduler(budget);
+
+    galculus::llm_scheduled::ScheduledLLMRuntime llm(
+        remote_llm,
+        scheduler
+    );
+
+    std::cout << "[agent] requesting scheduled remote LLM decision\n";
 
     LLMResult result =
         llm.generate(
