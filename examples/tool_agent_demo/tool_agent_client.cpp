@@ -1,13 +1,18 @@
 #include <galculus/llm/Prompt.hpp>
 #include <galculus/llm/GenerationConfig.hpp>
+#include <galculus/llm/LLMResult.hpp>
 #include <galculus/llm_remote/RemoteLLM.hpp>
 
 #include <galculus/tools/ToolCallParser.hpp>
 #include <galculus/tools/ToolRegistry.hpp>
 #include <galculus/tools/SafetyPolicy.hpp>
-#include "galculus/scheduler/TokenBudget.hpp"
-#include "galculus/scheduler/TokenScheduler.hpp"
-#include "galculus/llm_scheduled/ScheduledLLMRuntime.hpp"
+
+#include <galculus/scheduler/TokenBudget.hpp>
+#include <galculus/scheduler/TokenScheduler.hpp>
+#include <galculus/llm_scheduled/ScheduledLLMRuntime.hpp>
+
+#include <galculus/memory/MemoryManager.hpp>
+#include <galculus/llm_memory/MemoryAwareLLMRuntime.hpp>
 
 #include <cstdint>
 #include <iostream>
@@ -47,19 +52,43 @@ int main() {
         "llm.server"
     );
 
-    galculus::scheduler::TokenBudget budget;
-    budget.max_prompt_tokens = 128;
-    budget.max_completion_tokens = 32;
-    budget.remaining_tokens = 160;
+    galculus::scheduler::TokenBudget token_budget;
+    token_budget.max_prompt_tokens = 128;
+    token_budget.max_completion_tokens = 32;
+    token_budget.remaining_tokens = 160;
 
-    galculus::scheduler::TokenScheduler scheduler(budget);
-
-    galculus::llm_scheduled::ScheduledLLMRuntime llm(
-        remote_llm,
-        scheduler
+    galculus::scheduler::TokenScheduler token_scheduler(
+        token_budget
     );
 
-    std::cout << "[agent] requesting scheduled remote LLM decision\n";
+    galculus::llm_scheduled::ScheduledLLMRuntime scheduled_llm(
+        remote_llm,
+        token_scheduler
+    );
+
+    galculus::memory::MemoryManagerConfig memory_config;
+    memory_config.global_arena_size = 64 * 1024;
+    memory_config.scratch_arena_size = 16 * 1024;
+    
+    memory_config.message_block_size = 512;
+    memory_config.message_block_count = 32;
+
+    galculus::memory::MemoryManager memory_manager(
+        memory_config
+    );
+
+    memory_manager.set_agent_budget(
+        "tool_agent.client",
+        8 * 1024
+    );
+
+    galculus::llm_memory::MemoryAwareLLMRuntime llm(
+        scheduled_llm,
+        memory_manager,
+        "tool_agent.client"
+    );
+
+    std::cout << "[agent] requesting memory-aware scheduled remote LLM decision\n";
 
     LLMResult result =
         llm.generate(
@@ -67,7 +96,7 @@ int main() {
             config
         );
 
-    if (!result.ok()) {
+    if (!result.ok() || !result.error_message.empty())  {
         std::cerr << "[agent] LLM failed: "
                   << result.error_message << "\n";
         return 1;
@@ -158,6 +187,21 @@ int main() {
 
     std::cout << "[agent] tool execution success: "
               << tool_result.message << "\n";
+
+    const auto* agent_budget =
+        memory_manager.agent_budget(
+            "tool_agent.client"
+        );
+
+    if (agent_budget != nullptr) {
+        std::cout << "[agent] memory used after request: "
+                  << agent_budget->used_bytes()
+                  << " bytes\n";
+
+        std::cout << "[agent] memory peak usage: "
+                  << agent_budget->peak_used_bytes()
+                  << " bytes\n";
+    }
 
     return 0;
 }

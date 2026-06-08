@@ -16,6 +16,8 @@ add_subdirectory(llm_remote)
 add_subdirectory(tools)
 add_subdirectory(scheduler)
 add_subdirectory(llm_scheduled)
+add_subdirectory(llm_memory)
+add_subdirectory(memory)
 
 if(GALCULUS_BUILD_EXAMPLES)
     add_subdirectory(examples/hello_agent)

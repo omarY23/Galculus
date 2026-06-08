@@ -160,3 +160,33 @@ add_test(
     NAME galculus_scheduled_llm_runtime_tests
     COMMAND galculus_scheduled_llm_runtime_tests
 )
+
+add_executable(galculus_memory_tests
+    memory_tests.cpp
+)
+
+target_link_libraries(galculus_memory_tests
+    PRIVATE
+        galculus_memory
+)
+
+add_test(
+    NAME galculus_memory_tests
+    COMMAND galculus_memory_tests
+)
+
+add_executable(galculus_llm_memory_tests
+    llm_memory_tests.cpp
+)
+
+target_link_libraries(galculus_llm_memory_tests
+    PRIVATE
+        galculus_llm
+        galculus_memory
+        galculus_llm_memory
+)
+
+add_test(
+    NAME galculus_llm_memory_tests
+    COMMAND galculus_llm_memory_tests
+)
